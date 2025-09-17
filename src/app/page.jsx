@@ -298,6 +298,53 @@ useEffect(() => {
   return () => clearTimeout(t);
 }, [modalOpen, modalSrc]);
 
+// dentro de Home, arriba del return:
+const [isLandscape, setIsLandscape] = useState(true);
+
+// util para saber si está en landscape
+function computeLandscape() {
+  // Screen Orientation API (cuando existe)
+  const so = screen.orientation || screen.msOrientation || screen.mozOrientation;
+  if (so?.type) return so.type.startsWith("landscape");
+  // Fallback
+  if (window.matchMedia) {
+    const m = window.matchMedia("(orientation: landscape)");
+    if (typeof m.matches === "boolean") return m.matches;
+  }
+  return window.innerWidth > window.innerHeight;
+}
+
+// mantener isLandscape actualizado
+useEffect(() => {
+  const update = () => setIsLandscape(computeLandscape());
+  update();
+  window.addEventListener("resize", update);
+  window.addEventListener("orientationchange", update);
+  return () => {
+    window.removeEventListener("resize", update);
+    window.removeEventListener("orientationchange", update);
+  };
+}, []);
+
+// cuando el modal abre/cambia orientación, forzamos pausa/play según corresponda
+useEffect(() => {
+  if (!modalOpen || !modalSrc) return;
+  const v = document.getElementById("modal-video");
+  if (!v) return;
+
+  const apply = async () => {
+    if (isLandscape) {
+      try { await v.play(); } catch {}
+    } else {
+      try { v.pause(); } catch {}
+    }
+  };
+  // pequeño delay para asegurar mount
+  const t = setTimeout(apply, 50);
+  return () => clearTimeout(t);
+}, [modalOpen, modalSrc, isLandscape]);
+
+
 
 
   return (
@@ -409,55 +456,56 @@ useEffect(() => {
 
       {/* ===== Modal de Video ===== */}
       <AnimatePresence>
-        {modalOpen && (
-          <motion.div
-            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={(e) => {
-              // cerrar si hace click en el fondo
-              if (e.currentTarget === e.target) closeModal();
-            }}
-          >
-            <motion.div
-  className="relative w-full h-full sm:h-auto sm:w-full sm:max-w-5xl sm:aspect-[16/9] bg-black rounded-none sm:rounded-lg overflow-hidden shadow-2xl"
-  initial={{ scale: 0.98, opacity: 0 }}
-  animate={{ scale: 1, opacity: 1 }}
-  exit={{ scale: 0.98, opacity: 0 }}
->
-  {/* WRAPPER que podemos rotar en iOS */}
-  <div
-    id="landscape-wrap"
-    className="absolute inset-0"
-    style={{ background: "black" }}
-  >
-    <video
-      key={modalSrc}
-      id="modal-video"
-      src={modalSrc}
-      controls
-      autoPlay
-      playsInline
-      className="absolute inset-0 h-full w-full object-contain bg-black"
-      onEnded={closeModal}
-    />
-  </div>
+  {modalOpen && (
+    <motion.div
+      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={(e) => { if (e.currentTarget === e.target && isLandscape) closeModal(); }}
+    >
+      <motion.div
+        className="relative w-full h-full sm:h-auto sm:w-full sm:max-w-5xl sm:aspect-[16/9] bg-black rounded-none sm:rounded-lg overflow-hidden shadow-2xl"
+        initial={{ scale: 0.98, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.98, opacity: 0 }}
+      >
+        <video
+          key={modalSrc}
+          id="modal-video"
+          src={modalSrc}
+          controls
+          autoPlay
+          playsInline
+          className="absolute inset-0 h-full w-full object-contain bg-black"
+          onLoadedMetadata={(e) => { if (!isLandscape) e.currentTarget.pause(); }}
+          onEnded={closeModal}
+        />
 
-  {/* botón cerrar (oculto en mobile si querés) */}
-  <button
-    onClick={closeModal}
-    aria-label="Cerrar"
-    className="hidden sm:block absolute -top-3 -right-3 rounded-full bg-white text-black p-2 shadow-lg hover:scale-105 active:scale-95 transition"
-  >
-    ✕
-  </button>
-</motion.div>
-
-
-          </motion.div>
+        {/* Overlay que exige landscape (bloquea clicks) */}
+        {!isLandscape && (
+          <div className="absolute inset-0 bg-black/80 text-white flex flex-col items-center justify-center gap-3 text-center px-6">
+            <div className="text-3xl">↻</div>
+            <h4 className="text-lg font-semibold">Girá tu teléfono</h4>
+            <p className="text-sm text-neutral-300">
+              Para ver el video, poné el dispositivo en horizontal.
+            </p>
+          </div>
         )}
-      </AnimatePresence>
+
+        {/* Botón cerrar (visible en desktop) */}
+        <button
+          onClick={closeModal}
+          aria-label="Cerrar"
+          className="hidden sm:block absolute -top-3 -right-3 rounded-full bg-white text-black p-2 shadow-lg hover:scale-105 active:scale-95 transition"
+        >
+          ✕
+        </button>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+
     </>
   );
 }
