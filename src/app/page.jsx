@@ -231,6 +231,75 @@ function Home({
     return () => window.removeEventListener("keydown", onKey);
   }, [modalOpen]);
 
+  // Renderiza el primer frame de cada preview cuando entra en viewport (mobile)
+useEffect(() => {
+  const vids = Array.from(document.querySelectorAll('video.preview-video'));
+  if (vids.length === 0) return;
+
+  const isIOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  const playOneFrame = async (video) => {
+    try {
+      video.muted = true;
+      video.playsInline = true;
+      // Cargar lo suficiente como para pintar un frame
+      video.preload = "auto";
+      // Intenta reproducir un instante y pausar
+      await video.play();
+      // mover un poquito el tiempo ayuda a que pinte frame en iOS
+      if (video.currentTime < 0.05) video.currentTime = 0.05;
+      setTimeout(() => video.pause(), 120);
+    } catch (e) {
+      // iOS puede bloquear; lo intentamos de nuevo al hacer tap
+    }
+  };
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const video = entry.target;
+      if (entry.isIntersecting) {
+        playOneFrame(video);
+      }
+    });
+  }, { rootMargin: "200px 0px", threshold: 0.25 });
+
+  vids.forEach(v => io.observe(v));
+
+  return () => io.disconnect();
+}, []);
+
+// Dentro de Home, junto a otros useEffect:
+useEffect(() => {
+  if (!modalOpen || !modalSrc) return;
+  const isIOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  const v = document.getElementById("modal-video");
+  if (!v) return;
+
+  // Intento de fullscreen nativo iOS
+  const tryIOSFullscreen = async () => {
+    try {
+      // iOS nativo
+      if (isIOS && v.webkitEnterFullscreen) {
+        v.webkitEnterFullscreen();
+      } else if (document.fullscreenElement == null && v.requestFullscreen) {
+        await v.requestFullscreen();
+      }
+      await v.play().catch(() => {});
+    } catch {}
+  };
+
+  // Esperamos un microtick para asegurar que el <video> esté listo
+  const t = setTimeout(tryIOSFullscreen, 50);
+  return () => clearTimeout(t);
+}, [modalOpen, modalSrc]);
+
+
+
   return (
     <>
       {/* Navbar */}
@@ -297,24 +366,26 @@ function Home({
                   >
                     {/* mini-preview hover (silencioso) */}
                     <video
-                      src={it.src}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      className="absolute inset-0 w-full h-full object-cover transition group-hover:scale-105"
-                      onLoadedData={(e) => {
-                        e.currentTarget.currentTime = 0;
-                        e.currentTarget.pause();
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.currentTime = 0;
-                        e.currentTarget.play().catch(() => {});
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.pause();
-                        e.currentTarget.currentTime = 0;
-                      }}
-                    />
+  src={it.src}
+  className="preview-video absolute inset-0 w-full h-full object-cover transition group-hover:scale-105"
+  muted
+  playsInline
+  preload="auto"         // 👈 importante para pintar frame
+  // En desktop sigue el “hover preview”
+  onMouseEnter={(e) => {
+    e.currentTarget.currentTime = 0;
+    e.currentTarget.play().catch(() => {});
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.pause();
+    e.currentTarget.currentTime = 0;
+  }}
+  // En cuanto pueda, aseguramos que quede un frame visible
+  onLoadedData={(e) => {
+    if (e.currentTarget.currentTime < 0.05) e.currentTarget.currentTime = 0.05;
+    // no hacemos play acá para no disparar autoplay en desktop innecesario
+  }}
+/>
                     <div className="pointer-events-none absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition grid place-items-center">
                       <Play className="w-8 h-8 text-white opacity-80" />
                     </div>
@@ -350,29 +421,31 @@ function Home({
             }}
           >
             <motion.div
-              className="relative w-full max-w-5xl aspect-[16/9] bg-black rounded-lg overflow-hidden shadow-2xl"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-            >
-              <video
-                key={modalSrc}
-                src={modalSrc}
-                controls
-                autoPlay
-                playsInline
-                className="absolute inset-0 h-full w-full object-contain bg-black"
-                onEnded={closeModal}
-              />
-              {/* Cerrar */}
-              <button
-                onClick={closeModal}
-                aria-label="Cerrar"
-                className="absolute -top-3 -right-3 rounded-full bg-white text-black p-2 shadow-lg hover:scale-105 active:scale-95 transition"
-              >
-                ✕
-              </button>
-            </motion.div>
+  className="relative w-full h-full sm:h-auto sm:w-full sm:max-w-5xl sm:aspect-[16/9] bg-black rounded-none sm:rounded-lg overflow-hidden shadow-2xl"
+  initial={{ scale: 0.98, opacity: 0 }}
+  animate={{ scale: 1, opacity: 1 }}
+  exit={{ scale: 0.98, opacity: 0 }}
+>
+  <video
+    key={modalSrc}
+    id="modal-video"
+    src={modalSrc}
+    controls
+    autoPlay
+    playsInline
+    className="absolute inset-0 h-full w-full object-contain bg-black"
+    onEnded={closeModal}
+  />
+  {/* botón cerrar (lo escondemos en mobile si querés 100% nativo) */}
+  <button
+    onClick={closeModal}
+    aria-label="Cerrar"
+    className="hidden sm:block absolute -top-3 -right-3 rounded-full bg-white text-black p-2 shadow-lg hover:scale-105 active:scale-95 transition"
+  >
+    ✕
+  </button>
+</motion.div>
+
           </motion.div>
         )}
       </AnimatePresence>
