@@ -426,17 +426,25 @@ useEffect(() => {
   animate={{ scale: 1, opacity: 1 }}
   exit={{ scale: 0.98, opacity: 0 }}
 >
-  <video
-    key={modalSrc}
-    id="modal-video"
-    src={modalSrc}
-    controls
-    autoPlay
-    playsInline
-    className="absolute inset-0 h-full w-full object-contain bg-black"
-    onEnded={closeModal}
-  />
-  {/* botón cerrar (lo escondemos en mobile si querés 100% nativo) */}
+  {/* WRAPPER que podemos rotar en iOS */}
+  <div
+    id="landscape-wrap"
+    className="absolute inset-0"
+    style={{ background: "black" }}
+  >
+    <video
+      key={modalSrc}
+      id="modal-video"
+      src={modalSrc}
+      controls
+      autoPlay
+      playsInline
+      className="absolute inset-0 h-full w-full object-contain bg-black"
+      onEnded={closeModal}
+    />
+  </div>
+
+  {/* botón cerrar (oculto en mobile si querés) */}
   <button
     onClick={closeModal}
     aria-label="Cerrar"
@@ -445,6 +453,7 @@ useEffect(() => {
     ✕
   </button>
 </motion.div>
+
 
           </motion.div>
         )}
