@@ -20,7 +20,7 @@ export default function NetflixInvite() {
 
 const heroImage =  "/couple.jpg";
   const posterSrc = params.poster || "/img/portada.jpg";
-  const title = params.titulo ? decodeURIComponent(params.titulo) : "Jacqueline & Braian – Nuestra Pelicula";
+  const title = params.titulo ? decodeURIComponent(params.titulo) : "Shake & Braian – Nuestra Pelicula";
   const name = params.padrino ? decodeURIComponent(params.padrino) : "";
   const isClean = params.clean === "1" || params.clean === "true";
   const isImageHero = /\.(jpg|jpeg|png|webp)$/i.test(heroImage);
