@@ -345,6 +345,56 @@ useEffect(() => {
 }, [modalOpen, modalSrc, isLandscape]);
 
 
+function getYouTubeID(url) {
+  const regex = /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^\s&?]+)/;
+  const match = url.match(regex);
+  return match ? match[1] : null;
+}
+
+const iframeRef = useRef(null);
+
+
+// escucha orientación
+useEffect(() => {
+  const mql = window.matchMedia("(orientation: landscape)");
+  const handler = (e) => setIsLandscape(e.matches);
+  mql.addEventListener?.("change", handler);
+  // fallback iOS viejos
+  window.addEventListener("orientationchange", () => {
+    setIsLandscape(window.matchMedia("(orientation: landscape)").matches);
+  });
+  return () => {
+    mql.removeEventListener?.("change", handler);
+    window.removeEventListener("orientationchange", () => {});
+  };
+}, []);
+
+// cargar API de YouTube (una vez)
+useEffect(() => {
+  if (document.getElementById("yt-api")) return;
+  const tag = document.createElement("script");
+  tag.id = "yt-api";
+  tag.src = "https://www.youtube.com/iframe_api";
+  document.body.appendChild(tag);
+}, []);
+
+// cuando el modal abre y es YouTube, si ya está horizontal => reproducir
+useEffect(() => {
+  if (!modalOpen) return;
+  if (modalSrc !== "youtube") return; // usa este literal para tu botón principal
+  if (!isLandscape) return;           // espera a landscape
+  // intentar reproducir mediante postMessage (no hace falta construir YT.Player)
+  const iframe = iframeRef.current;
+  if (!iframe) return;
+  try {
+    // playVideo via postMessage (enablejsapi=1 es clave)
+    iframe.contentWindow?.postMessage(
+      JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+      "*"
+    );
+  } catch {}
+}, [modalOpen, modalSrc, isLandscape]);
+
 
 
   return (
@@ -385,12 +435,12 @@ useEffect(() => {
 
           {/* Abrir video principal en modal */}
           <button
-            onClick={() => openModal("/0915.mp4")}
-            className="mt-4 inline-flex items-center gap-2 rounded-md bg-white text-black px-5 py-2 font-semibold hover:bg-white/90 transition"
-          >
-            <Play className="w-5 h-5" />
-            Reproducir video
-          </button>
+  onClick={() => openModal("youtube")}
+  className="mt-4 inline-flex items-center gap-2 rounded-md bg-white text-black px-5 py-2 font-semibold hover:bg-white/90 transition"
+>
+  <Play className="w-5 h-5" />
+  Reproducir video
+</button>
         </div>
       </div>
 
@@ -458,46 +508,55 @@ useEffect(() => {
       <AnimatePresence>
   {modalOpen && (
     <motion.div
-      className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-0"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={(e) => { if (e.currentTarget === e.target && isLandscape) closeModal(); }}
+      onClick={(e) => { if (e.currentTarget === e.target) closeModal(); }}
     >
       <motion.div
-        className="relative w-full h-full sm:h-auto sm:w-full sm:max-w-5xl sm:aspect-[16/9] bg-black rounded-none sm:rounded-lg overflow-hidden shadow-2xl"
+        className="relative w-screen h-screen bg-black"
         initial={{ scale: 0.98, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.98, opacity: 0 }}
       >
-        <video
-          key={modalSrc}
-          id="modal-video"
-          src={modalSrc}
-          controls
-          autoPlay
-          playsInline
-          className="absolute inset-0 h-full w-full object-contain bg-black"
-          onLoadedMetadata={(e) => { if (!isLandscape) e.currentTarget.pause(); }}
-          onEnded={closeModal}
-        />
-
-        {/* Overlay que exige landscape (bloquea clicks) */}
-        {!isLandscape && (
-          <div className="absolute inset-0 bg-black/80 text-white flex flex-col items-center justify-center gap-3 text-center px-6">
-            <div className="text-3xl">↻</div>
-            <h4 className="text-lg font-semibold">Girá tu teléfono</h4>
-            <p className="text-sm text-neutral-300">
-              Para ver el video, poné el dispositivo en horizontal.
-            </p>
+        {/* Overlay pidiendo rotar en mobile cuando está en portrait */}
+        {modalSrc === "youtube" && !isLandscape && (
+          <div className="absolute inset-0 z-10 grid place-items-center text-center p-8">
+            <div className="text-white">
+              <div className="text-xl font-semibold mb-2">Girá el teléfono</div>
+              <div className="text-white/80">Para ver el video, poné el dispositivo en horizontal.</div>
+            </div>
           </div>
         )}
 
-        {/* Botón cerrar (visible en desktop) */}
+        {modalSrc === "youtube" ? (
+          <iframe
+            ref={iframeRef}
+            title="Trailer"
+            // Autoplay sólo si ya está en horizontal
+            src={`https://www.youtube.com/embed/bDVmUMq_OyM?enablejsapi=1&playsinline=1&controls=1&rel=0&autoplay=${isLandscape ? 1 : 0}`}
+            className="absolute inset-0 w-full h-full"
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <video
+            key={modalSrc}
+            src={modalSrc}
+            controls
+            autoPlay
+            playsInline
+            className="absolute inset-0 h-full w-full object-contain bg-black"
+            onEnded={closeModal}
+          />
+        )}
+
+        {/* Cerrar (visible en desktop; en mobile podés ocultarlo si querés sólo gesto “atrás”) */}
         <button
           onClick={closeModal}
           aria-label="Cerrar"
-          className="hidden sm:block absolute -top-3 -right-3 rounded-full bg-white text-black p-2 shadow-lg hover:scale-105 active:scale-95 transition"
+          className="absolute top-4 right-4 rounded-full bg-white text-black p-2 shadow-lg hover:scale-105 active:scale-95 transition"
         >
           ✕
         </button>
@@ -505,6 +564,8 @@ useEffect(() => {
     </motion.div>
   )}
 </AnimatePresence>
+
+
 
     </>
   );
