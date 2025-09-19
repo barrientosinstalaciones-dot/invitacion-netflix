@@ -178,7 +178,7 @@ function AnimatedN({ onDone }){
 
 function Profiles({ onSelect, onBackToIntro }){
   const profiles = [
-    { id: "madrinas", label: "Madrinas", img: "/madrinas.jpg" },
+    { id: "madrinas", label: "Madrinas", img: "/madrinas.png" },
     { id: "padrinos", label: "Padrinos", img: "/padrinos.jpeg" },
   ];
   return (
