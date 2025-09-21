@@ -499,7 +499,6 @@ useEffect(() => {
         <div className="mx-auto max-w-6xl px-4 py-6 text-sm text-neutral-400 flex flex-col sm:flex-row items-center gap-2 justify-between">
           <div>Hecho con ♥ para nuestros padrinos</div>
           <div>
-            Tip: agrega <code>?padrino=Tu%20Nombre</code> a la URL para personalizar el saludo.
           </div>
         </div>
       </footer>
